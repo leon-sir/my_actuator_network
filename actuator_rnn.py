@@ -210,6 +210,9 @@ parser.add_argument("--output", type=str, required=True, help="Path to save or l
 args = parser.parse_args()
 data_path = os.path.join(BASE_PATH, args.data)
 output_path = os.path.join(BASE_PATH, args.output)
+current_script_name = os.path.splitext(os.path.basename(__file__))[0]
+policy_path = os.path.join(output_path, f"{current_script_name}_net.pt")
+figure_path = os.path.join(output_path, f"{current_script_name}_figure.png")
 config = Config()
 
 data_dict, num_jets = load_data(data_path)
@@ -238,9 +241,9 @@ if config.using_real_data:
     # num_test = num_data - num_train
     # 分割数据
     model, hidden_prev = train_actuator_network(train_x=train_x, train_y=train_y,
-                                                actuator_network_path=output_path, config=config)
+                                                actuator_network_path=policy_path, config=config)
 else:
-    model, hidden_prev = train_actuator_network(train_x=torch.tensor([0]), train_y=0, actuator_network_path=output_path, config=config)
+    model, hidden_prev = train_actuator_network(train_x=torch.tensor([0]), train_y=0, actuator_network_path=policy_path, config=config)
 
 
 # Validation
@@ -291,33 +294,9 @@ plt.scatter(time_steps[1:], val_y.ravel(), c='y', label='y true')  # y值
 plt.scatter(time_steps[1:], predictions_only_one_iput, c='b', label='y predicted one input')  
 plt.scatter(time_steps[1:], predictions_series_iput, c='k', label='y predicted series input')  
 plt.legend()
+plt.savefig(figure_path, dpi=300, bbox_inches='tight')
 plt.show()
 
-
-# def main():
-#     parser = argparse.ArgumentParser()
-#     parser.add_argument("--mode", type=str, required=True, choices=["train", "play"], help="Choose whether to train or evaluate the actuator network")
-#     parser.add_argument("--data", type=str, required=True, help="Path of data files")
-#     parser.add_argument("--output", type=str, required=True, help="Path to save or load the actuator network model")
-
-#     args = parser.parse_args()
-
-#     data_path = os.path.join(BASE_PATH, args.data)
-#     output_path = os.path.join(BASE_PATH, args.output)
-
-#     config = Config()
-
-#     if args.mode == "train":
-#         load_pretrained_model = False
-#     elif args.mode == "play":
-#         load_pretrained_model = True
-
-#     train_actuator_network_and_plot_predictions(
-#         data_path=data_path,
-#         actuator_network_path=output_path,
-#         load_pretrained_model=load_pretrained_model,
-#         config=config,
-#     )
 
 # if __name__ == "__main__":
 #     main()
