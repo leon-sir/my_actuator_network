@@ -30,6 +30,8 @@ class Config:
         self.dt = 0.001
         self.iterations = 6000
         self.hidden_size = 16
+        # self.export_mode = "script"       # "script" or "trace"
+        self.export_mode = "trace"      # "script" or "trace"
 
 
 def load_data(data_path):
@@ -106,6 +108,31 @@ class LSTM_Net(nn.Module):
         return out, hidden_prev
 
 
+def export_network(model: nn.Module, actuator_network_path: str, config: Config):
+    """将模型导出为 TorchScript (.pt) 和 ONNX (.onnx) 格式"""
+
+    # 在CPU上进行导出更安全，不依赖特定硬件
+    device_for_export = "cpu"
+    model.eval()    # 为了让导出的模型也能重置状态，需要先切换到评估模式
+    model.to(device_for_export)
+
+    if config.export_mode == "script":
+        model_scripted = torch.jit.script(model)
+        model_scripted.save(actuator_network_path)
+        print(f"Model successfully saved to {actuator_network_path} by torch.jit.scripts")
+
+    elif config.export_mode == "trace":
+        dummy_input = torch.zeros(1, config.num_time_steps, config.in_dim).to(device_for_export)
+        traced_model = torch.jit.trace(model, (dummy_input, (torch.zeros(config.num_layers, 1, config.hidden_size).to(device_for_export))))
+        torch.jit.save(traced_model, actuator_network_path)
+        PURPLE = '\033[95m'
+        print(f"{PURPLE} Model successfully saved to {actuator_network_path} by torch.jit.trace")
+        
+    else:
+        raise ValueError(f"Unsupported export mode: {config.export_mode}")
+    
+
+
 def train_actuator_network(train_x: None, train_y: None,
                            actuator_network_path: str, config: Config):
 
@@ -166,11 +193,13 @@ def train_actuator_network(train_x: None, train_y: None,
     # print total loss
     print(f"Finished Training. Final Loss: {loss.item():.6f}")
     # iter == config.iterations
+
     model_scripted = torch.jit.script(model)  # Export to TorchScript
     model_scripted.save(actuator_network_path)  # Save
 
     print("****\n Exported actuator lstm networks successfully\n*****")
 
+    export_network(model, actuator_network_path, config)
     return model, hidden_prev
 
 

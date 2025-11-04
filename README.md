@@ -56,7 +56,8 @@ python3 actuator_lstm_v1.py --data train_turbo_csv/fly_robot_LPV_data.csv --outp
 
 
 # v2 online lstm
-主要靠hidden state，减少了推理消耗，训练时使用TBPTT，训练时长较久
+主要靠hidden state，减少了推理消耗，训练时使用TBPTT(参考 https://lightning.ai/docs/pytorch/stable/common/tbptt.html)，
+训练时长较久.
 loss weight 逐渐变大，更专注于未来推断的准确率
 num_time_steps暂定50*0.005s=0.25s，等真机实验后要分析涡喷推力与多少时间前的输入的相关性再确定该值。
 

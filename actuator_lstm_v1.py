@@ -31,6 +31,8 @@ class Config:
         self.linear_units = 8
         self.input_scale = 1.5  # turbojet fuel flow(W(kg/s))
         self.output_scale = 70  # turbojet force
+        # self.export_mode = "script"   # "script" or "trace"
+        self.export_mode = "trace"  # "script" or "trace"
 
 
 def load_data(data_path):
@@ -122,9 +124,26 @@ def export_network(model: nn.Module, actuator_network_path: str, config: Config)
     device_for_export = "cpu"
     model.eval()    # 为了让导出的模型也能重置状态，需要先切换到评估模式
     model.to(device_for_export)
-    model_scripted = torch.jit.script(model)
-    model_scripted.save(actuator_network_path)
-    print(f"Model successfully saved to {actuator_network_path}")
+    # model_scripted = torch.jit.script(model)
+    # model_scripted.save(actuator_network_path)
+    # print(f"Model successfully saved to {actuator_network_path}")
+    if config.export_mode == "script":
+        model_scripted = torch.jit.script(model)
+        model_scripted.save(actuator_network_path)
+        print(f"Model successfully saved to {actuator_network_path} by torch.jit.scripts")
+
+    elif config.export_mode == "trace":
+        dummy_input = torch.zeros(1, config.num_time_steps, config.in_dim).to(device_for_export)
+        traced_model = torch.jit.trace(model, (dummy_input, (torch.zeros(config.num_layers, 1, config.hidden_size).to(device_for_export)
+                                                            , torch.zeros(config.num_layers, 1, config.hidden_size).to(device_for_export))))
+        torch.jit.save(traced_model, actuator_network_path)
+        PURPLE = '\033[95m'
+        print(f"{PURPLE} Model successfully saved to {actuator_network_path} by torch.jit.trace")
+        
+    else:
+        raise ValueError(f"Unsupported export mode: {config.export_mode}")
+    
+
 
 
 def train_actuator_network(train_x: None, train_y: None,
@@ -276,31 +295,6 @@ def main():
 
     export_network(model, policy_path, config)
 
-
-# def main():
-#     parser = argparse.ArgumentParser()
-#     parser.add_argument("--mode", type=str, required=True, choices=["train", "play"], help="Choose whether to train or evaluate the actuator network")
-#     parser.add_argument("--data", type=str, required=True, help="Path of data files")
-#     parser.add_argument("--output", type=str, required=True, help="Path to save or load the actuator network model")
-
-#     args = parser.parse_args()
-
-#     data_path = os.path.join(BASE_PATH, args.data)
-#     output_path = os.path.join(BASE_PATH, args.output)
-
-#     config = Config()
-
-#     if args.mode == "train":
-#         load_pretrained_model = False
-#     elif args.mode == "play":
-#         load_pretrained_model = True
-
-#     train_actuator_network_and_plot_predictions(
-#         data_path=data_path,
-#         actuator_network_path=output_path,
-#         load_pretrained_model=load_pretrained_model,
-#         config=config,
-#     )
 
 if __name__ == "__main__":
     main()

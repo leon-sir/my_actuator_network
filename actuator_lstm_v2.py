@@ -26,11 +26,13 @@ class Config:
         self.out_dim = 1
         self.act = "softsign"
         self.dt = 0.005
-        self.iterations = 30000
+        self.iterations = 30000     # 30000
         self.hidden_size = 50
         self.linear_units = 8
         self.input_scale = 1.5  # turbojet fuel flow(W(kg/s))
         self.output_scale = 70  # turbojet force
+        # self.export_mode = "script"       # "script" or "trace"
+        self.export_mode = "trace"      # "script" or "trace"
 
 
 def load_data(data_path):
@@ -122,9 +124,22 @@ def export_network(model: nn.Module, actuator_network_path: str, config: Config)
     device_for_export = "cpu"
     model.eval()    # 为了让导出的模型也能重置状态，需要先切换到评估模式
     model.to(device_for_export)
-    model_scripted = torch.jit.script(model)
-    model_scripted.save(actuator_network_path)
-    print(f"Model successfully saved to {actuator_network_path}")
+
+    if config.export_mode == "script":
+        model_scripted = torch.jit.script(model)
+        model_scripted.save(actuator_network_path)
+        print(f"Model successfully saved to {actuator_network_path} by torch.jit.scripts")
+
+    elif config.export_mode == "trace":
+        dummy_input = torch.zeros(1, 1, config.in_dim).to(device_for_export)
+        traced_model = torch.jit.trace(model, (dummy_input, (torch.zeros(config.num_layers, 1, config.hidden_size).to(device_for_export)
+                                                            , torch.zeros(config.num_layers, 1, config.hidden_size).to(device_for_export))))
+        torch.jit.save(traced_model, actuator_network_path)
+        PURPLE = '\033[95m'
+        print(f"{PURPLE} Model successfully saved to {actuator_network_path} by torch.jit.trace")
+        
+    else:
+        raise ValueError(f"Unsupported export mode: {config.export_mode}")
 
 
 def train_actuator_network(train_x: None, train_y: None,
