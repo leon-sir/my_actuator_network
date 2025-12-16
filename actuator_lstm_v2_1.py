@@ -8,7 +8,7 @@ import torch.optim as optim
 from matplotlib import pyplot as plt
 from typing import Tuple, Optional  # noqa: F401
 import random  # noqa: F401
-import onnxruntime as ort
+# import onnxruntime as ort
 
 BASE_PATH = os.path.dirname(os.path.abspath(__file__))
 
@@ -27,7 +27,7 @@ class Config:
         self.out_dim = 1
         self.act = "softsign"
         self.dt = 0.005
-        self.iterations = 30000
+        self.iterations = 3000     # 30000
         self.hidden_size = 50
         self.linear_units = 8
         self.input_scale = 1.5  # turbojet fuel flow(W(kg/s))
@@ -142,37 +142,37 @@ def export_network(model: nn.Module, actuator_network_path: str, config: Config)
     model_scripted.save(actuator_network_path)
     print(f"Model successfully saved to {actuator_network_path}")
 
-    # --- 2. 导出为 ONNX ---
-    print("Exporting to ONNX...")
-    # 为了获得一个干净的、用于导出的模型实例，我们重新创建一个
-    model_for_export = LSTM_Net(config)
-    model_for_export.load_state_dict(model.state_dict())    # 加载训练好的权重
-    model_for_export.eval()
+    # # --- 2. 导出为 ONNX ---
+    # print("Exporting to ONNX...")
+    # # 为了获得一个干净的、用于导出的模型实例，我们重新创建一个
+    # model_for_export = LSTM_Net(config)
+    # model_for_export.load_state_dict(model.state_dict())    # 加载训练好的权重
+    # model_for_export.eval()
 
-    model_for_export.to(device_for_export)
+    # model_for_export.to(device_for_export)
 
-    onnx_path = actuator_network_path.replace('.pt', '.onnx')
+    # onnx_path = actuator_network_path.replace('.pt', '.onnx')
 
-    # 创建符合模型 forward 方法的虚拟输入 (batch_size=1, seq_len=1)
-    dummy_x = torch.randn(1, 1, config.in_dim, device=device_for_export)
+    # # 创建符合模型 forward 方法的虚拟输入 (batch_size=1, seq_len=1)
+    # dummy_x = torch.randn(1, 1, config.in_dim, device=device_for_export)
 
-    # 定义输入输出节点的名称
-    input_names = ["input_x"]
-    output_names = ["output_pred"]
+    # # 定义输入输出节点的名称
+    # input_names = ["input_x"]
+    # output_names = ["output_pred"]
 
-    # 导出模型
-    torch.onnx.export(model_for_export,
-                      dummy_x,  # 虚拟输入只有一个
-                      onnx_path,
-                      verbose=False,
-                      input_names=input_names,
-                      output_names=output_names,
-                      opset_version=11,
-                    #   dynamic_axes={'input_x': {0: 'batch_size'},
-                    #                 'output_pred': {0: 'batch_size'}}
-                      )
+    # # 导出模型
+    # torch.onnx.export(model_for_export,
+    #                   dummy_x,  # 虚拟输入只有一个
+    #                   onnx_path,
+    #                   verbose=False,
+    #                   input_names=input_names,
+    #                   output_names=output_names,
+    #                   opset_version=11,
+    #                 #   dynamic_axes={'input_x': {0: 'batch_size'},
+    #                 #                 'output_pred': {0: 'batch_size'}}
+    #                   )
 
-    print(f"Model successfully exported to {onnx_path}")
+    # print(f"Model successfully exported to {onnx_path}")
 
 
 def train_actuator_network(train_x: None, train_y: None,

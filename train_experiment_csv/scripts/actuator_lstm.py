@@ -9,7 +9,8 @@ from matplotlib import pyplot as plt
 from typing import Tuple, Optional  # noqa: F401
 
 
-BASE_PATH = os.path.dirname(os.path.abspath(__file__))
+# BASE_PATH = os.path.dirname(os.path.abspath(__file__))
+BASE_PATH  = os.getcwd()
 
 """ To do list
 晚点把.csv的数据步长改为0.005s
@@ -31,7 +32,7 @@ class Config:
         self.out_dim = 1
         self.act = "softsign"
         self.dt = 0.005
-        self.iterations = 30000
+        self.iterations = 3000  # 30000
         self.hidden_size = 50
         self.linear_units = 8
         self.input_scale = 1.5  # turbojet fuel flow(W(kg/s))
@@ -46,7 +47,7 @@ def load_data(data_path):
         return None, 0
 
     num_actuators = sum(1 for col in data.columns if col.startswith("w_f"))
-    columns = ["w_f", "F", "N1", "N2", "P3", "T5"]
+    columns = ["w_f", "F", "N1"]
 
     data_dict = {"Time": []}
     for col in columns:
@@ -224,55 +225,52 @@ def train_actuator_network(train_x: None, train_y: None,
 
     # print total loss
     print(f"Finished Training. Final Loss: {loss.item():.6f}")
-    
+
     export_network(model, actuator_network_path, config)
 
     return model, hidden_prev
 
 
 def main():
-# # 训练过程
-parser = argparse.ArgumentParser()
-parser.add_argument("--data", type=str, required=True, help="Path of data files")
-parser.add_argument("--output", type=str, required=True, help="Path to save or load the actuator network model")
-args = parser.parse_args()
-data_path = os.path.join(BASE_PATH, args.data)
-output_path = os.path.join(BASE_PATH, args.output)
-current_script_name = os.path.splitext(os.path.basename(__file__))[0]
-policy_path = os.path.join(output_path, f"{current_script_name}_net.pt")
-figure_path = os.path.join(output_path, f"{current_script_name}_figure.png")
-config = Config()
+    # # 训练过程
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--data", type=str, required=False,
+                        default="train_experiment_csv/data/fly_robot_real_300B459_train.csv", help="Path of data files for train")
+    parser.add_argument("--output", type=str, required=False,
+                        default="train_experiment_csv/export", help="Path to save or load the actuator network model")
+    parser.add_argument("--val_data", type=str, required=False,
+                        default="train_experiment_csv/data/fly_robot_real_300B459_val.csv", help="Path of data files for validation")
+    args = parser.parse_args()
+    data_path = os.path.join(BASE_PATH, args.data)
+    output_path = os.path.join(BASE_PATH, args.output)
+    val_data_path = os.path.join(BASE_PATH, args.val_data)
+    current_script_name = os.path.splitext(os.path.basename(__file__))[0]
+    policy_path = os.path.join(output_path, f"{current_script_name}_net.pt")
+    figure_path = os.path.join(output_path, f"{current_script_name}_figure.png")
+    config = Config()
 
-data_dict, num_jets = load_data(data_path)
+    data_dict, _ = load_data(data_path)
+    val_data_dict, _ = load_data(val_data_path)
 
-if config.using_real_data:
     # xs = torch.tensor(data_dict["w_f"][:, 0:1], dtype=torch.float)/config.input_scale
     # ys = torch.tensor(data_dict["F"][:, 0:1], dtype=torch.float)/config.output_scale
-    xs = torch.tensor(data_dict["w_f"][:, 0:1], dtype=torch.float)
-    ys = torch.tensor(data_dict["F"][:, 0:1], dtype=torch.float)
-    Time = torch.tensor(data_dict["Time"][:, 0:1], dtype=torch.float)
+    xs = torch.tensor(data_dict["w_f"], dtype=torch.float)
+    ys = torch.tensor(data_dict["F"], dtype=torch.float)
+    Time = torch.tensor(data_dict["Time"], dtype=torch.float)
 
     num_data = xs.shape[0]
     num_train = int(num_data * 0.8)
 
-    # 训练数据
-    train_x = xs[:num_train]
-    train_y = ys[:num_train]
-
-    # 验证数据
-    val_x = xs[num_train:].unsqueeze(0)
-    val_y = ys[num_train:].unsqueeze(0)
     time_steps = Time[num_train:]-Time[num_train]
 
-    model, hidden_prev = train_actuator_network(train_x=train_x, train_y=train_y,
-                                                actuator_network_path=policy_path, config=config)
-else:
-    model, hidden_prev = train_actuator_network(train_x=torch.tensor([0]), train_y=0,
+    model, hidden_prev = train_actuator_network(train_x=xs, train_y=ys,
                                                 actuator_network_path=policy_path, config=config)
 
-
-# Validation
-if config.using_real_data:
+    # Validation
+    val_x = torch.tensor(val_data_dict["w_f"][:, 0:1], dtype=torch.float).unsqueeze(0)
+    val_y = torch.tensor(val_data_dict["F"][:, 0:1], dtype=torch.float).unsqueeze(0)
+    # val_x = xs[num_train:].unsqueeze(0)
+    # val_y = ys[num_train:].unsqueeze(0)
     model.cpu()
 
     h_0_val = torch.zeros(config.num_layers, config.batch_size, config.hidden_size).cpu()
@@ -295,47 +293,11 @@ if config.using_real_data:
 
     plt.plot(time_steps, val_y.ravel(), c='y', label='y true')  # y值
     plt.plot(time_steps+config.num_time_steps*config.dt, predictions,
-             c='b', label='y predicted', linestyle='--')  # y的预测值
+                c='b', label='y predicted', linestyle='--')  # y的预测值
     plt.legend()
     plt.savefig(figure_path, dpi=300, bbox_inches='tight')
     plt.show()
 
-else:
-    # 先用同样的方式生成一组数据x,y
-    start = np.random.randint(3, size=1)[0]
-    time_steps = np.linspace(start, start + 10, config.num_time_steps)
-    data = np.sin(time_steps)
-    data = data.reshape(config.num_time_steps, 1)
-    val_x = torch.tensor(data[:-1]).float().view(1, config.num_time_steps - 1, 1)
-    val_y = torch.tensor(data[1:]).float().view(1, config.num_time_steps - 1, 1)
 
-    model.cpu()
-
-    h_0_val = torch.zeros(config.num_layers, config.batch_size, config.hidden_size).cpu()
-    c_0_val = torch.zeros(config.num_layers, config.batch_size, config.hidden_size).cpu()
-    hidden_prev = (h_0_val, c_0_val)
-    predictions = []
-
-    input = val_x[:, 0, :]           # 取seq_len里面第0号数据
-    input = input.view(1, 1, 1)  # input：[1,1,1]
-    for _ in range(val_x.shape[1]):  # 迭代seq_len次
-        pred, hidden_prev = model(input, hidden_prev)
-        # 预测出的(下一个点的)序列pred当成输入(或者直接写成input, hidden_prev = model(input, hidden_prev))
-        input = pred
-        predictions.append(pred.detach().numpy().ravel()[0])
-
-    val_x = val_x.data.numpy()
-    val_y = val_y.data.numpy()
-    plt.plot(time_steps[:-1], val_x.ravel(), label='x values (line)')
-
-    plt.scatter(time_steps[:-1], val_x.ravel(), c='r', label='x (start)')  # x值
-    plt.scatter(time_steps[1:], val_y.ravel(), c='y', label='y true')  # y值
-    plt.plot(time_steps[1:], predictions, c='b', label='y predicted', linestyle='--')  # y的预测值
-    plt.legend()
-    plt.grid(True)
-    plt.savefig(figure_path, dpi=300, bbox_inches='tight')
-    plt.show()
-
-
-# if __name__ == "__main__":
-#     main()
+if __name__ == "__main__":
+    main()

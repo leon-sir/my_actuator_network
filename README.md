@@ -65,8 +65,15 @@ Note: actuator_lstm_v2_1 把隐藏变量存于模型中，每次初始化自动�
 参考“https://www.php.cn/faq/1432002.html”
 ```bash
 python3 actuator_lstm_v2.py --data train_turbo_csv/fly_robot_LPV_data.csv --output train_turbo_csv
+python3 actuator_lstm_v2_1.py --data train_turbo_csv/fly_robot_LPV_data.csv --output train_turbo_csv
 ```
 
 <div style="text-align: center;">
   <img src="images/actuator_lstm_v2_figure.png" alt="lstm_v2" width="500">
 </div>
+
+
+# 真机实验数据训练
+```bash
+python3 train_experiment_csv/scripts/actuator_lstm.py --data train_experiment_csv/data/fly_robot_real_300B459_train.csv --output train_experiment_csv/export --val_data train_experiment_csv/data/fly_robot_real_300B459_val.csv
+```
